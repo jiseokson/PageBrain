@@ -1,0 +1,40 @@
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build / distribution
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# IDE / editor
+.vscode/
+.idea/
+
+# Logs / temp
+*.log
+*.tmp
+*.bak
+
+# Test / coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+.pytest_cache/
+.cache/
+
+# Jupyter / notebooks
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
