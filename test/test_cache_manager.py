@@ -42,13 +42,13 @@ def test_write_and_read():
   layer_idx = 0
   seq_ids = [str(uuid.uuid4().hex) for _ in range(batch_size)]
   input_pos, cache_pos = make_dummy_input_cache_pos(batch_size, max_len, device, dtype=torch.int)
-  max_cache_len = torch.max(cache_pos[:, 1]).item()
-  keys, values = make_dummy_keys_values(batch_size, num_heads, max_cache_len, d_head, device=device, dtype=kv_dtype)
+  seq_len = torch.max(input_pos[:, 1]).item()
+  keys, values = make_dummy_keys_values(batch_size, num_heads, seq_len, d_head, device, dtype=kv_dtype)
 
   cache_manager.update(seq_ids, layer_idx, keys, values, input_pos)
 
   read_keys, read_values = [], []
-  for k_p, v_p in cache_manager.iter_pages(seq_ids, layer_idx, cache_pos):
+  for k_p, v_p in cache_manager.iter_page(seq_ids, layer_idx, cache_pos):
     # k_p, v_p: [B, H, P, D]
     read_keys.append(k_p)
     read_values.append(v_p)
