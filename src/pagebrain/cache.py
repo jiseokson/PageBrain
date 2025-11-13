@@ -62,7 +62,6 @@ class CacheManager:
       v_pool[first_block_idx, :, first_page_offset : first_page_end, :] = v_curr[sample_idx, :, :src_idx, :]
 
       logger.debug(
-        # f'sample_idx: {sample_idx} - '
         f'wrote kv_curr[{sample_idx}, :, :{src_idx}, :] '
         f'into BlockManager pool[{first_block_idx}, :, {first_page_offset}:{first_page_end}, :]'
       )
@@ -76,14 +75,13 @@ class CacheManager:
         k_pool[block_idx, :, :dst_end, :] = k_curr[sample_idx, :, src_idx : src_end, :]
         v_pool[block_idx, :, :dst_end, :] = v_curr[sample_idx, :, src_idx : src_end, :]
         logger.debug(
-          # f'sample_idx: {sample_idx} - '
           f'wrote kv_curr[{sample_idx}, :, {src_idx}:{src_end}, :] '
           f'into BlockManager pool[{block_idx}, :, 0:{dst_end}, :]'
         )
 
         src_idx += self.page_size
       
-  def iter_pages(
+  def iter_page(
     self,
     seq_ids: List[SeqId],
     layer_idx: int,
