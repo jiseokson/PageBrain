@@ -6,7 +6,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from pagebrain.block import BlockManager
 from pagebrain.cache import CacheManager
-from utils import make_dummy_input_cache_pos, make_dummy_keys_values
+from utils import make_dummy_input_cache_pos, make_dummy_keys_values, set_random_seed
 
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
@@ -25,11 +25,8 @@ d_head = model.config.n_embd // num_heads
 kv_dtype = torch.float32
 
 
-def test_write_and_read():
-  RANDOM_SEED = 42
-  random.seed(RANDOM_SEED)
-  torch.manual_seed(RANDOM_SEED)
-  torch.cuda.manual_seed_all(RANDOM_SEED)
+def test_prefill_update():
+  set_random_seed(42)
   
   num_blocks = 1000
   batch_size = 10
@@ -41,14 +38,14 @@ def test_write_and_read():
 
   layer_idx = 0
   seq_ids = [str(uuid.uuid4().hex) for _ in range(batch_size)]
-  input_pos, cache_pos = make_dummy_input_cache_pos(batch_size, max_len, device, dtype=torch.int)
-  seq_len = torch.max(input_pos[:, 1]).item()
+  _, cache_pos = make_dummy_input_cache_pos(batch_size, max_len, device, dtype=torch.int)
+  seq_len = torch.max(cache_pos[:, 1]).item()
   keys, values = make_dummy_keys_values(batch_size, num_heads, seq_len, d_head, device, dtype=kv_dtype)
 
-  cache_manager.update(seq_ids, layer_idx, keys, values, input_pos)
+  cache_manager.update(seq_ids, layer_idx, keys, values, cache_pos)
 
   read_keys, read_values = [], []
-  for k_p, v_p in cache_manager.iter_page(seq_ids, layer_idx, cache_pos):
+  for k_p, v_p, cache_mask in cache_manager.iter_page(seq_ids, layer_idx, cache_pos):
     # k_p, v_p: [B, H, P, D]
     read_keys.append(k_p)
     read_values.append(v_p)
@@ -58,7 +55,51 @@ def test_write_and_read():
   cache_len = cache_pos[:, 1].tolist()
 
   for orig_key, read_key, clen in zip(keys, read_keys, cache_len):
-    assert torch.isclose(orig_key[:, :clen, :], read_key[:, :clen, :])
+    if cache_len == 0: continue
+    assert orig_key[:, :clen, :].shape == read_key[:, :clen, :].shape
+    assert torch.isclose(orig_key[:, :clen, :], read_key[:, :clen, :]).all().item()
 
   for orig_value, read_value, clen in zip(values, read_values, cache_len):
-    assert torch.isclose(orig_value[:, :clen, :], read_value[:, :clen, :])
+    if cache_len == 0: continue
+    assert orig_value[:, :clen, :].shape == read_value[:, :clen, :].shape
+    assert torch.isclose(orig_value[:, :clen, :], read_value[:, :clen, :]).all().item()
+
+
+def test_step_update():
+  set_random_seed(42)
+  
+  num_blocks = 1000
+  batch_size = 10
+  max_len = 100
+  page_size = 32
+
+  block_manager = BlockManager(num_blocks, num_layers, num_heads, d_head, page_size, device, dtype=kv_dtype)
+  cache_manager = CacheManager(block_manager)
+
+  layer_idx = 0
+  seq_ids = [str(uuid.uuid4().hex) for _ in range(batch_size)]
+  input_pos, _ = make_dummy_input_cache_pos(batch_size, max_len, device, dtype=torch.int)
+  seq_len = torch.max(input_pos[:, 1]).item()
+  keys, values = make_dummy_keys_values(batch_size, num_heads, seq_len, d_head, device, dtype=kv_dtype)
+
+  cache_manager.update(seq_ids, layer_idx, keys, values, input_pos)
+
+  read_keys, read_values = [], []
+  for k_p, v_p, cache_mask in cache_manager.iter_page(seq_ids, layer_idx, input_pos):
+    # k_p, v_p: [B, H, P, D]
+    read_keys.append(k_p)
+    read_values.append(v_p)
+  read_keys = torch.cat(read_keys, dim=2) # [B, H, n*P, D]
+  read_values = torch.cat(read_values, dim=2) # [B, H, n*P, D]
+
+  cache_len = input_pos[:, 1].tolist()
+
+  for orig_key, read_key, clen in zip(keys, read_keys, cache_len):
+    if cache_len == 0: continue
+    assert orig_key[:, :clen, :].shape == read_key[:, :clen, :].shape
+    assert torch.isclose(orig_key[:, :clen, :], read_key[:, :clen, :]).all().item()
+
+  for orig_value, read_value, clen in zip(values, read_values, cache_len):
+    if cache_len == 0: continue
+    assert orig_value[:, :clen, :].shape == read_value[:, :clen, :].shape
+    assert torch.isclose(orig_value[:, :clen, :], read_value[:, :clen, :]).all().item()

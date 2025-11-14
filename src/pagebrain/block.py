@@ -7,7 +7,13 @@ import torch
 class BlockManager:
   def __init__(self, num_blocks, num_layers, num_heads, d_head, page_size, device, dtype):
     self.num_blocks = num_blocks
+    self.num_layers = num_layers
+    self.num_heads = num_heads
+    self.d_head = d_head
     self.page_size = page_size
+
+    self.device = device
+    self.dtype = dtype
 
     self.gpu_k_pool = [
       torch.empty([num_blocks, num_heads, page_size, d_head], device=device, dtype=dtype)

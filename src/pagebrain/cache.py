@@ -1,6 +1,6 @@
 from collections import defaultdict
 import logging
-from typing import List, Tuple
+from typing import Generator, List, Tuple
 
 import torch
 
@@ -52,6 +52,8 @@ class CacheManager:
     input_tokens = input_pos[:, 1].tolist()
     for sample_idx, (seq_id, first_page_idx, first_page_offset, input_token) \
       in enumerate(zip(seq_ids, first_page_ids, first_page_offsets, input_tokens)):
+      if input_token == 0: continue
+
       block_ids = self.block_table[(seq_id, layer_idx)]
 
       # The first page may already contain data; write into remaining space
@@ -86,15 +88,74 @@ class CacheManager:
     seq_ids: List[SeqId],
     layer_idx: int,
     cache_pos: torch.Tensor
-  ) -> Tuple[torch.Tensor, torch.Tensor, int]:
+  ) -> Generator[torch.Tensor, torch.Tensor, torch.Tensor]:
     # Reads KV cache from the BlockManager pool and reconstructs it into tensors.
     # Causes many copies and is inefficient; written for testing purposes.
-    
-    start_page_ids = cache_pos[:, 0] // self.page_size    # [B]
-    start_page_offsets = cache_pos[:, 0] % self.page_size # [B]
-    
+
+    logger.debug(
+      f'entered iter_page(\n'
+      f'  seq_ids={[seq_id[:5] for seq_id in seq_ids]},\n'
+      f'  layer_idx={layer_idx}, cache_pos={cache_pos.tolist()})'
+    )
+
+    # Compute index range of target pages to read
+    first_page_ids = cache_pos[:, 0] // self.page_size                        # [B]
+    last_page_ids = (cache_pos[:, 0] + cache_pos[:, 1] - 1) // self.page_size # [B]
+    # last_page_ids[last_page_ids == -1] = 0
+    min_page_idx = torch.min(first_page_ids).item()
+    max_page_idx = torch.max(last_page_ids).item()
+
+    logger.debug(f'first_page_ids: {first_page_ids}')
+    logger.debug(f'last_page_ids:  {last_page_ids}')
+    logger.debug(f'target page index range: [{min_page_idx}, {max_page_idx}]')
+
+    # Block index list of batch samples
+    batch_block_ids = []
     for seq_id in seq_ids:
       block_ids = self.block_table[(seq_id, layer_idx)]
+      batch_block_ids.append(block_ids)
+
+    logger.debug(f'batch_block_ids: {batch_block_ids}')
+
+    # Before reading, fetch cache spec information
+    k_pool = self.block_manager.gpu_k_pool[layer_idx] # [num_blocks, num_heads, page_size, d_head]
+    v_pool = self.block_manager.gpu_v_pool[layer_idx] # same as above
+    num_heads = self.block_manager.num_heads
+    # Set to BlockManager’s page_size when CacheManager is created, so both values remain identical.
+    page_size = self.page_size
+    d_head = self.block_manager.d_head
+    device = self.block_manager.device
+    kv_dtype = self.block_manager.dtype
+
+    for page_idx in range(min_page_idx, max_page_idx + 1):
+      read_mask = (first_page_ids <= page_idx) & (page_idx <= last_page_ids) # [B]
+      read_block_ids = []
+      for read_flag, block_ids in zip(read_mask.tolist(), batch_block_ids):
+        read_block_ids.append(block_ids[page_idx] if read_flag else None)
+
+      logger.debug(f'page_idx={page_idx} - read_mask={read_mask.tolist()}')
+      logger.debug(f'page_idx={page_idx} - read_block_ids={read_block_ids}')
+
+      # List of [H, P, D] shaped tensors
+      k_pages = [
+        k_pool[block_idx, :, :, :] if block_idx is not None
+        else torch.empty([num_heads, page_size, d_head], device=device, dtype=kv_dtype)
+        for block_idx in read_block_ids
+      ]
+      v_pages = [
+        v_pool[block_idx, :, :, :] if block_idx is not None
+        else torch.empty([num_heads, page_size, d_head], device=device, dtype=kv_dtype)
+        for block_idx in read_block_ids
+      ]
+
+      k_p = torch.stack(k_pages) # [B, H, P, D]
+      v_p = torch.stack(v_pages) # [B, H, P, D]
+
+      logger.debug(f'KV page shape: {k_p.shape}')
+
+      page_mask = None # [B, 2]
+
+      yield k_p, v_p, page_mask
 
   def iter_page_index(
     self,

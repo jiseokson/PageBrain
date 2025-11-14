@@ -3,6 +3,13 @@ import random
 import torch
 
 
+def set_random_seed(random_seed):
+  random_seed = 42
+  random.seed(random_seed)
+  torch.manual_seed(random_seed)
+  if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(random_seed)
+
 def make_dummy_input_cache_pos(batch_size, max_len, device, dtype):
   input_pos = torch.zeros(batch_size, 2, device=device, dtype=dtype)
   cache_pos = torch.zeros(batch_size, 2, device=device, dtype=dtype)
