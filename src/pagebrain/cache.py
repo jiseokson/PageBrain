@@ -5,10 +5,11 @@ from typing import Generator, List, Tuple
 import torch
 
 from pagebrain.block import BlockManager
+from pagebrain.sequence import SeqId
 
 
 logger = logging.getLogger(__name__)
-SeqId = str
+
 
 # !! Temporary workaround: implemented by directly accessing BlockManager.pool for recording !!
 class CacheManager:

@@ -94,22 +94,28 @@ def test_GPT2PagedAttention(use_seed):
 
   # Create a PagedAttention module for each layer
   layer_paged_attn = [
-    GPT2PagedAttention() # !! TODO: Proper constructor arguments need to be defined !!
+    GPT2PagedAttention(
+      model.transformer.h[layer_idx].attn,
+      layer_idx,
+      cache_manager,
+      num_heads,
+      d_head,
+    )
     for layer_idx in range(num_layers)
   ]
 
   # For each layer, forward the PagedAttention module using the cache and new input to obtain output
   layer_paged_attn_output_states = []
   for paged_attn, next_states in zip(layer_paged_attn, layer_next_states):
-    input_pos = torch.zeros([batch_size, 2], device=device, dtype=kv_dtype)
+    input_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.int)
     input_pos[:, 0] = prefill_len
     input_pos[:, 1] = 1
 
-    cache_pos = torch.zeros([batch_size, 2], device=device, dtype=kv_dtype)
+    cache_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.int)
     cache_pos[:, 0] = 0
     cache_pos[:, 1] = prefill_len
 
-    paged_attn_output_states = paged_attn(next_states, input_pos, cache_pos) # [B, 1, C]
+    paged_attn_output_states = paged_attn(next_states, seq_ids, input_pos, cache_pos) # [B, 1, C]
     layer_paged_attn_output_states.append(paged_attn_output_states)
 
   # Compare outputs of the baseline attention and PagedAttention
