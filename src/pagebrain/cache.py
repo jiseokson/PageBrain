@@ -148,12 +148,12 @@ class CacheManager:
       # List of [H, P, D] shaped tensors
       k_pages = [
         k_pool[block_idx, :, :, :] if block_idx is not None
-        else torch.empty([num_heads, page_size, d_head], device=device, dtype=kv_dtype)
+        else torch.zeros([num_heads, page_size, d_head], device=device, dtype=kv_dtype)
         for block_idx in read_block_ids
       ]
       v_pages = [
         v_pool[block_idx, :, :, :] if block_idx is not None
-        else torch.empty([num_heads, page_size, d_head], device=device, dtype=kv_dtype)
+        else torch.zeros([num_heads, page_size, d_head], device=device, dtype=kv_dtype)
         for block_idx in read_block_ids
       ]
 

@@ -14,14 +14,13 @@ def make_attn_mask(
   batch_size: int,
   k_len: int,
   pos: torch.Tensor,
-  device, dtype
+  device
 ) -> torch.Tensor:
-  attn_mask = torch.zeros([batch_size, k_len], device=device, dtype=torch.int)
+  attn_mask = torch.zeros([batch_size, k_len], device=device).bool()
   for sample_idx, (start, length) in enumerate(pos.tolist()):
-    attn_mask[sample_idx, start : start + length] = 1
-  attn_mask = (1.0 - attn_mask) * torch.finfo(dtype).min
+    attn_mask[sample_idx, start : start + length] = True
   attn_mask = attn_mask[:, None, None, :]
-  return attn_mask
+  return ~attn_mask
 
 
 class GPT2PagedAttention(nn.Module):
@@ -76,13 +75,14 @@ class GPT2PagedAttention(nn.Module):
     assert k_curr.shape == torch.Size([batch_size, num_heads, q_len, d_head])
     assert v_curr.shape == torch.Size([batch_size, num_heads, q_len, d_head])
 
-    m   = torch.full( [batch_size, num_heads, q_len,      1], -float('inf'), device=device, dtype=dtype)
+    m   = torch.full( [batch_size, num_heads, q_len,      1], torch.finfo(dtype).min, device=device, dtype=dtype)
     l   = torch.zeros([batch_size, num_heads, q_len,      1], device=device, dtype=dtype)
     acc = torch.zeros([batch_size, num_heads, q_len, d_head], device=device, dtype=dtype)
 
     for k_p, v_p, page_pos in self.cache_manager.iter_page(seq_ids, self.layer_idx, cache_pos):
-      attn_mask = make_attn_mask(batch_size, self.page_size, page_pos, device, dtype)
+      attn_mask = make_attn_mask(batch_size, self.page_size, page_pos, device)
       s_p = q @ k_p.transpose(-1, -2) * scale + attn_mask
+      s_p = s_p.masked_fill(attn_mask, torch.finfo(dtype).min)
 
       m_p = s_p.max(dim=-1, keepdim=True).values
       m_new = torch.maximum(m, m_p)
@@ -97,11 +97,13 @@ class GPT2PagedAttention(nn.Module):
 
     aligend_input_pos = input_pos.clone()
     aligend_input_pos[:, 0] = 0
-    attn_mask = make_attn_mask(batch_size, q_len, aligend_input_pos, device, dtype)
+    attn_mask = make_attn_mask(batch_size, q_len, aligend_input_pos, device)
     causal_mask = torch.triu(torch.ones(q_len, q_len, device=device, dtype=torch.bool), diagonal=1)
+    causal_mask = causal_mask[None, None, :, :]
 
-    s_curr = q @ k_curr.transpose(-1, -2) * scale + attn_mask
-    s_curr = s_curr.masked_fill(causal_mask.unsqueeze(0).unsqueeze(0), float("-inf"))
+    s_curr = q @ k_curr.transpose(-1, -2) * scale
+    s_curr = s_curr.masked_fill(attn_mask, torch.finfo(dtype).min)
+    s_curr = s_curr.masked_fill(causal_mask, torch.finfo(dtype).min)
 
     m_p = s_curr.max(dim=-1, keepdim=True).values
     m_new = torch.maximum(m, m_p)
