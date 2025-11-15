@@ -49,7 +49,7 @@ def test_GPT2PagedAttention(use_seed):
   batch_size = len(prompts)
 
   # Determine prefill_len as the valid token length shared by all batch samples
-  inputs = tokenizer(prompts, return_tensors="pt", padding=True).to(device)
+  inputs = tokenizer(prompts, return_tensors='pt', padding=True).to(device)
   prefill_len = torch.min(inputs['attention_mask'].sum(-1)).item()
   inputs = {k: v[:, :prefill_len] for k, v in inputs.items()}
 
@@ -100,29 +100,26 @@ def test_GPT2PagedAttention(use_seed):
       cache_manager,
       num_heads,
       d_head,
-    )
+    ).eval()
     for layer_idx in range(num_layers)
   ]
 
   # For each layer, forward the PagedAttention module using the cache and new input to obtain output
   layer_paged_attn_output_states = []
   for paged_attn, next_states in zip(layer_paged_attn, layer_next_states):
-    input_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.int)
-    input_pos[:, 0] = prefill_len
-    input_pos[:, 1] = 1
-
     cache_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.int)
     cache_pos[:, 0] = 0
     cache_pos[:, 1] = prefill_len
 
-    paged_attn_output_states = paged_attn(next_states, seq_ids, input_pos, cache_pos) # [B, 1, C]
+    input_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.int)
+    input_pos[:, 0] = prefill_len
+    input_pos[:, 1] = 1
+
+    with torch.no_grad():
+      paged_attn_output_states = paged_attn(next_states, seq_ids, input_pos, cache_pos) # [B, 1, C]
     layer_paged_attn_output_states.append(paged_attn_output_states)
 
   # Compare outputs of the baseline attention and PagedAttention
   for attn_output_states, paged_attn_output_states in \
     zip(layer_attn_output_states, layer_paged_attn_output_states):
-    assert torch.isclose(
-      attn_output_states,
-      paged_attn_output_states,
-      rtol=1e-4, atol=1e-4
-    ).all().item()
+    assert torch.isclose(attn_output_states, paged_attn_output_states, rtol=1e-4, atol=1e-4).all().item()
