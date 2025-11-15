@@ -10,6 +10,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
 
+[project.scripts]
+pagebrain = "pagebrain.endpoints.server:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
