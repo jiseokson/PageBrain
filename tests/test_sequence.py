@@ -65,9 +65,9 @@ def test_sequence_group(use_seed):
   for seq in seqs:
     tokens = len(seq.token_buffer)
     seq.cache_start = 0
-    seq.cache_len = random.randint(0, tokens-1)
-    seq.input_start = seq.cache_len
-    seq.input_len = tokens - seq.input_start
+    seq.cache_len = 0
+    seq.input_start = 0
+    seq.input_len = random.randint(1, tokens)
 
     cache_starts.append(seq.cache_start)
     cache_lens.append(seq.cache_len)
