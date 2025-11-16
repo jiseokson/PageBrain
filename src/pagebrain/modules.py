@@ -121,3 +121,52 @@ class GPT2PagedAttention(nn.Module):
     out = self.base_attn.resid_dropout(out)
 
     return out
+
+
+class PagedGPT2Block(nn.Module):
+  def __init__(
+    self,
+    base_block,
+    layer_idx: int,
+    cache_manager,
+    num_heads: int,
+    d_head: int,
+  ):
+    super().__init__()
+    self.ln_1 = base_block.ln_1
+    self.ln_2 = base_block.ln_2
+    self.mlp = base_block.mlp
+
+    self.attn = GPT2PagedAttention(
+      base_attn = base_block.attn,
+      layer_idx = layer_idx,
+      cache_manager = cache_manager,
+      num_heads = num_heads,
+      d_head = d_head,
+    )
+
+  def forward(
+    self,
+    hidden_states: torch.Tensor,
+    seq_ids: List[SeqId],
+    input_pos: torch.Tensor,
+    cache_pos: torch.Tensor,
+  ) -> torch.Tensor:
+    residual = hidden_states
+    hidden_states = self.ln_1(hidden_states)
+
+    attn_output = self.attn(
+      hidden_states,
+      seq_ids=seq_ids,
+      input_pos=input_pos,
+      cache_pos=cache_pos,
+    )
+
+    hidden_states = residual + attn_output
+
+    residual = hidden_states
+    hidden_states = self.ln_2(hidden_states)
+    feed_forward_hidden_states = self.mlp(hidden_states)
+    hidden_states = residual + feed_forward_hidden_states
+
+    return hidden_states
