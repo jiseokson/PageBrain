@@ -42,7 +42,7 @@ def test_prefill_update(use_seed):
 
   layer_idx = 0
   seq_ids = [str(uuid.uuid4().hex) for _ in range(batch_size)]
-  _, cache_pos = make_dummy_input_cache_pos(batch_size, max_len, device, dtype=torch.int)
+  _, cache_pos = make_dummy_input_cache_pos(batch_size, max_len, device, dtype=torch.long)
   kv_seq_len = torch.max(cache_pos[:, 1]).item()
   keys, values = make_dummy_keys_values(batch_size, num_heads, kv_seq_len, d_head, device, dtype=kv_dtype)
 
@@ -83,7 +83,7 @@ def test_step_update(use_seed):
 
   layer_idx = 0
   seq_ids = [str(uuid.uuid4().hex) for _ in range(batch_size)]
-  input_pos, _ = make_dummy_input_cache_pos(batch_size, max_len, device, dtype=torch.int)
+  input_pos, _ = make_dummy_input_cache_pos(batch_size, max_len, device, dtype=torch.long)
   kv_seq_len = torch.max(input_pos[:, 1]).item()
   keys, values = make_dummy_keys_values(batch_size, num_heads, kv_seq_len, d_head, device, dtype=kv_dtype)
 

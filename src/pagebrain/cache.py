@@ -163,7 +163,7 @@ class CacheManager:
       logger.debug(f'page_idx={page_idx} - KV page shape: {k_p.shape}')
 
       batch_size = k_p.size(0)
-      page_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.int)
+      page_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.long)
       page_pos[read_mask, 0] = src_offset[read_mask]
 
       read_tokens = torch.minimum(page_size - src_offset, remain_tokens) # [B]

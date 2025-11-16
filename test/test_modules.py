@@ -90,9 +90,9 @@ def test_GPT2PagedAttention_prefill(use_seed):
   layer_paged_attn_output_states = []
   seq_ids = [str(uuid.uuid4().hex) for _ in range(batch_size)]
   for paged_attn, attn_input_states in zip(layer_paged_attn, layer_attn_input_states):
-    cache_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.int)
+    cache_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.long)
 
-    input_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.int)
+    input_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.long)
     input_pos[:, 0] = 0
     input_pos[:, 1] = prefill_len
 
@@ -151,7 +151,7 @@ def test_GPT2PagedAttention_step_after_prefill(use_seed):
   # Write the KV cache obtained from the HF model’s prefill forward
   seq_ids = [str(uuid.uuid4().hex) for _ in range(batch_size)]
   for layer_idx, layer_cache in enumerate(outputs.past_key_values.layers):
-    input_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.int)
+    input_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.long)
     input_pos[:, 1] = prefill_len
     cache_manager.update(seq_ids, layer_idx, layer_cache.keys, layer_cache.values, input_pos)
 
@@ -170,11 +170,11 @@ def test_GPT2PagedAttention_step_after_prefill(use_seed):
   # For each layer, forward the PagedAttention module using the cache and new input to obtain output
   layer_paged_attn_output_states = []
   for paged_attn, next_states in zip(layer_paged_attn, layer_next_states):
-    cache_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.int)
+    cache_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.long)
     cache_pos[:, 0] = 0
     cache_pos[:, 1] = prefill_len
 
-    input_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.int)
+    input_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.long)
     input_pos[:, 0] = prefill_len
     input_pos[:, 1] = 1
 
@@ -219,12 +219,12 @@ def test_GPT2PagedAttention_step_and_prefill_mixed(use_seed):
   batch_size = len(prompts)
   num_prefill_samples = batch_size // 2
   prefill_sample_ids = torch.randperm(batch_size)[:num_prefill_samples].to(device)
-  prefill_lens = torch.randint(0, prefill_len - 1, [num_prefill_samples], device=device, dtype=torch.int)
+  prefill_lens = torch.randint(0, prefill_len - 1, [num_prefill_samples], device=device, dtype=torch.long)
   
-  cache_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.int)
+  cache_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.long)
   cache_pos[prefill_sample_ids, 1] = prefill_lens
 
-  input_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.int)
+  input_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.long)
   input_pos[:, 0] = cache_pos[:, 1]
   input_pos[:, 1] = prefill_len - input_pos[:, 0]
 

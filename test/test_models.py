@@ -42,10 +42,10 @@ def test_PagedGPT2LMHeadModel():
   inputs = tokenizer(prompts, return_tensors='pt', padding=True).to(device)
   seq_ids = [str(uuid.uuid4().hex) for _ in range(batch_size)]
 
-  cache_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.int)
-  
+  cache_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.long)
+
   input_lens = inputs['attention_mask'].sum(dim=-1)
-  input_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.int)
+  input_pos = torch.zeros([batch_size, 2], device=device, dtype=torch.long)
   input_pos[:, 1] = input_lens
   assert input_pos.shape == torch.Size([batch_size, 2])
   

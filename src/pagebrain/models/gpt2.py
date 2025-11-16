@@ -44,7 +44,7 @@ class PagedGPT2LMHeadModel(nn.Module):
     batch_size, q_len = input_ids.shape
     device = input_ids.device
 
-    position_ids = torch.zeros([batch_size, q_len], device=device, dtype=torch.int)
+    position_ids = torch.zeros([batch_size, q_len], device=device, dtype=torch.long)
     for sample_idx, (start, length) in enumerate(input_pos.tolist()):
       position_ids[sample_idx, :length] = torch.arange(start, start + length, device=device)
 
