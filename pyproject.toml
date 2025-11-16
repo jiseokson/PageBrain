@@ -17,4 +17,4 @@ pagebrain = "pagebrain.endpoints.server:main"
 where = ["src"]
 
 [tool.pytest.ini_options]
-testpaths = ["test"]
+testpaths = ["tests"]
