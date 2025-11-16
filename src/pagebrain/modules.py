@@ -23,7 +23,7 @@ def make_attn_mask(
   return ~attn_mask
 
 
-class GPT2PagedAttention(nn.Module):
+class PagedGPT2Attention(nn.Module):
   def __init__(
     self,
     base_attn: nn.Module,
@@ -137,7 +137,7 @@ class PagedGPT2Block(nn.Module):
     self.ln_2 = base_block.ln_2
     self.mlp = base_block.mlp
 
-    self.attn = GPT2PagedAttention(
+    self.attn = PagedGPT2Attention(
       base_attn = base_block.attn,
       layer_idx = layer_idx,
       cache_manager = cache_manager,

@@ -5,7 +5,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from pagebrain.block import BlockManager
 from pagebrain.cache import CacheManager
-from pagebrain.modules import GPT2PagedAttention
+from pagebrain.modules import PagedGPT2Attention
 from utils import set_random_seed
 
 
@@ -42,7 +42,7 @@ prompts = [
 ]
 
 
-def test_GPT2PagedAttention_prefill(use_seed):
+def test_PagedGPT2Attention_prefill(use_seed):
   if use_seed:
     set_random_seed(42)
 
@@ -75,7 +75,7 @@ def test_GPT2PagedAttention_prefill(use_seed):
 
   # Create a PagedAttention module for each layer
   layer_paged_attn = [
-    GPT2PagedAttention(
+    PagedGPT2Attention(
       model.transformer.h[layer_idx].attn,
       layer_idx,
       cache_manager,
@@ -106,7 +106,7 @@ def test_GPT2PagedAttention_prefill(use_seed):
     assert torch.isclose(attn_output_states, paged_attn_output_states, rtol=1e-4, atol=1e-4).all().item()
 
 
-def test_GPT2PagedAttention_step_after_prefill(use_seed):
+def test_PagedGPT2Attention_step_after_prefill(use_seed):
   if use_seed:
     set_random_seed(42)
 
@@ -157,7 +157,7 @@ def test_GPT2PagedAttention_step_after_prefill(use_seed):
 
   # Create a PagedAttention module for each layer
   layer_paged_attn = [
-    GPT2PagedAttention(
+    PagedGPT2Attention(
       model.transformer.h[layer_idx].attn,
       layer_idx,
       cache_manager,
@@ -188,7 +188,7 @@ def test_GPT2PagedAttention_step_after_prefill(use_seed):
     assert torch.isclose(attn_output_states, paged_attn_output_states, rtol=1e-4, atol=1e-4).all().item()
 
 
-def test_GPT2PagedAttention_step_and_prefill_mixed(use_seed):
+def test_PagedGPT2Attention_step_and_prefill_mixed(use_seed):
   if use_seed:
     set_random_seed(42)
 
@@ -251,7 +251,7 @@ def test_GPT2PagedAttention_step_and_prefill_mixed(use_seed):
 
   # Create a PagedAttention module for each layer
   layer_paged_attn = [
-    GPT2PagedAttention(
+    PagedGPT2Attention(
       model.transformer.h[layer_idx].attn,
       layer_idx,
       cache_manager,
