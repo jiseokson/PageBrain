@@ -6,6 +6,7 @@ from typing import Literal, Optional
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+import torch
 import uvicorn
 
 from pagebrain.endpoints.logo import logo_ascii_art
@@ -64,12 +65,8 @@ def main():
     help='Name of the language model to load (HuggingFace model ID)'
   )
   parser.add_argument(
-    '--device', type=str, default='cuda',
+    '--device', type=str, default='cuda:0',
     help='Device to run the model on'
-  )
-  parser.add_argument(
-    '--dtype', type=str, default='torch.float32',
-    help='Data type used for storing KV cache'
   )
 
   args = parser.parse_args()
@@ -78,7 +75,6 @@ def main():
   engine = Engine(
     model_name=args.model,
     device=args.device,
-    kv_dtype=args.dtype,
   )
 
   @asynccontextmanager

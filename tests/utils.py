@@ -2,6 +2,8 @@ import random
 
 import torch
 
+from pagebrain.engine import EngineRequest
+
 
 def set_random_seed(random_seed):
   random_seed = 42
@@ -45,3 +47,19 @@ def make_dummy_keys_values(batch_size, num_heads, seq_len, d_head, device, dtype
   keys = torch.rand([batch_size, num_heads, seq_len, d_head], device=device, dtype=dtype)
   values = torch.rand([batch_size, num_heads, seq_len, d_head], device=device, dtype=dtype)
   return keys, values
+
+
+def make_engine_reqs(prompts):
+  engine_reqs = []
+  for prompt in prompts:
+    engine_req = EngineRequest(
+      prompt=prompt,
+      max_new_tokens=random.randint(20, 50),
+      method=random.choice(['greedy', 'top_p', 'top_k']),
+      temperature=random.uniform(0.1, 2.0),
+      top_p=random.uniform(0.5, 1.0),
+      top_k=random.randint(20, 200),
+    )
+    engine_reqs.append(engine_req)
+
+  return engine_reqs

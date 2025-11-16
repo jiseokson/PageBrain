@@ -1,7 +1,13 @@
 import asyncio
 import json
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from pagebrain.block import BlockManager
+from pagebrain.cache import CacheManager
+from pagebrain.schedule import Scheduler
 from pagebrain.sequence import Sequence
 
 
@@ -20,8 +26,8 @@ class EngineRequest:
     self.max_new_tokens: int = max_new_tokens
     self.method: Literal['greedy', 'top_p', 'top_k'] = method
     self.temperature: float = temperature
-    self.top_p: Optional[float] = top_p
-    self.top_k: Optional[float] = top_k
+    self.top_p: Optional[float] = 0.9 if top_p is None else top_p
+    self.top_k: Optional[float] = 50 if top_k is None else top_k
 
     if method == 'greedy':
       self.top_p = None
@@ -43,24 +49,42 @@ class EngineRequest:
 
 
 class Engine:
-  def __init__(
-    self,
-    model_name: str,
-    device,
-    kv_dtype,
-  ):
+  def __init__(self, model_name: str, device):
     self.model_name = model_name
     self.device = device
-    self.kv_dtype = kv_dtype
 
     self.seq_queue = asyncio.Queue()
 
-    # self.scheduler
-    # self.block_manager
-    # self.cache_manager
-    # self.executor
+    self.base_model = AutoModelForCausalLM.from_pretrained(model_name)
+    self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+    self.tokenizer.pad_token = self.tokenizer.eos_token
+
+    self.scheduler: Scheduler = Scheduler()
+    self.block_manager: BlockManager = None
+    self.cache_manager: CacheManager = None
+    # self.executor(base_model, device)
 
   def start(self):
+    # !! Need logic to determine BlockManager constructor arguments from current model and hardware settings !!
+    num_blocks = 100
+    num_layers = 12
+    num_heads = 12
+    d_head = 768
+    page_size = 32
+    kv_dtype = torch.float32
+
+    self.block_manager = BlockManager(
+      num_blocks=num_blocks,
+      num_layers=num_layers,
+      num_heads=num_heads,
+      d_head=d_head,
+      page_size=page_size,
+      device=self.device,
+      dtype=kv_dtype,
+    )
+
+    self.cache_manager = CacheManager(self.block_manager)
+
     asyncio.create_task(self.engine_loop())
 
   async def engine_loop(self):
@@ -75,16 +99,22 @@ class Engine:
       seq = await self.seq_queue.get()
       seqs.append(seq)
 
+    if len(seqs) > 0:
+      self._init_batch_sequence_before_sched(seqs)
+      # self.scheduler.add(seqs)
+
     # The scheduler issues the sequence group to generate for this step
     # Adjust the current input position, cache position, and related states
     pass
 
     # Generate the sequence group issued through the executor
+    # TODO: Execute the SeqGroup issued by the Scheduler and implement updating each seq’s state afterward
     pass
 
     # After the generation step, deliver tokens for each request and set their events
+    # This also needs to be handed over to the executor
     for seq in seqs:
-      seq.token_text = seq.prompt
+      seq.gen_tokens.append(seq.prompt)
       seq.new_token = True
       seq.done = True
       seq.event.set()
@@ -116,7 +146,7 @@ class Engine:
         token_event = {
           'event': 'token',
           'request_id': seq.id,
-          'text': seq.token_text,
+          'text': seq.gen_tokens[-1],
         }
         seq.new_token = False
         yield f'data: {json.dumps(token_event, ensure_ascii=False)}\n\n'
@@ -130,3 +160,16 @@ class Engine:
     }
     yield f'data: {json.dumps(end_event, ensure_ascii=False)}\n\n'
     yield 'data: [DONE]\n\n'
+
+  def _init_batch_sequence_before_sched(self, seqs: List[Sequence]):
+    # Before adding to the scheduler, pre-encode the tokens to be processed next
+    prompts = [seq.prompt for seq in seqs]
+    inputs = self.tokenizer(prompts, return_tensors='pt', padding=True).to(self.device)
+
+    input_ids = inputs['input_ids']
+    input_lens = inputs['attention_mask'].sum(dim=-1).tolist()
+
+    batch_size = len(seqs)
+    for sample_idx in range(batch_size):
+      input_len = input_lens[sample_idx]
+      seqs[sample_idx].token_buffer.extend(input_ids[sample_idx, :input_len].tolist())
