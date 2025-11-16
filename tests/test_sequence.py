@@ -84,3 +84,113 @@ def test_sequence_group(use_seed):
   for seq, input_id, (start, length) in \
     zip(seqs, seq_group.input_ids, seq_group.input_pos.tolist()):
     assert (input_id[:length].squeeze() == torch.tensor(seq.token_buffer[:length], device=device)).all().item()
+
+
+def test_sequence_group_full_update(use_seed):
+  if use_seed:
+    set_random_seed(42)
+
+  engine_reqs = make_engine_reqs(prompts)
+
+  seqs = []
+  for engine_req in engine_reqs:
+    seq = Sequence(
+      engine_req.prompt,
+      engine_req.max_new_tokens,
+      engine_req.method,
+      engine_req.temperature,
+      engine_req.top_p,
+      engine_req.top_k,
+      asyncio.Event(),
+    )
+    seqs.append(seq)
+
+  engine = Engine(model_name=model_name, device=device)
+  # Fill the token_buffer using the function below
+  # Tests for this function are written in test_engine.py
+  engine._init_batch_sequence_before_sched(seqs)
+
+  # Simulate a situation where the scheduler determines the prefill forward length
+  cache_starts = []
+  cache_lens = []
+  input_starts = []
+  input_lens = []
+  for seq in seqs:
+    tokens = len(seq.token_buffer)
+    seq.cache_start = 0
+    seq.cache_len = 0
+    seq.input_start = 0
+    # Forward is determined for the full token length of every sample,
+    # so all new tokens must be added to the buffer
+    seq.input_len = tokens
+
+    cache_starts.append(seq.cache_start)
+    cache_lens.append(seq.cache_len)
+    input_starts.append(seq.input_start)
+    input_lens.append(seq.input_len)
+
+  seq_group = SequenceGroup(seqs, device=device)
+
+  batch_size = len(prompts)
+  next_token_ids = torch.randint(0, 100, [batch_size], device=device)
+  seq_group.update(next_token_ids)
+
+  for seq, next_token_id in zip(seqs, next_token_ids.tolist()):
+    assert len(seq.token_buffer) == 1
+    assert seq.token_buffer[-1] == next_token_id
+
+
+def test_sequence_group_few_update(use_seed):
+  if use_seed:
+    set_random_seed(42)
+
+  engine_reqs = make_engine_reqs(prompts)
+
+  seqs = []
+  for engine_req in engine_reqs:
+    seq = Sequence(
+      engine_req.prompt,
+      engine_req.max_new_tokens,
+      engine_req.method,
+      engine_req.temperature,
+      engine_req.top_p,
+      engine_req.top_k,
+      asyncio.Event(),
+    )
+    seqs.append(seq)
+
+  engine = Engine(model_name=model_name, device=device)
+  # Fill the token_buffer using the function below
+  # Tests for this function are written in test_engine.py
+  engine._init_batch_sequence_before_sched(seqs)
+
+  # Simulate a situation where the scheduler determines the prefill forward length
+  cache_starts = []
+  cache_lens = []
+  input_starts = []
+  input_lens = []
+  buffer_lens = []
+  for seq in seqs:
+    tokens = len(seq.token_buffer)
+    seq.cache_start = 0
+    seq.cache_len = 0
+    seq.input_start = 0
+    # A situation where all samples are determined to forward fewer tokens 
+    # than their full length. Therefore, the token buffer should shrink only 
+    # by the number of processed tokens, and no new tokens should be added.
+    seq.input_len = random.randint(1, tokens-1)
+
+    cache_starts.append(seq.cache_start)
+    cache_lens.append(seq.cache_len)
+    input_starts.append(seq.input_start)
+    input_lens.append(seq.input_len)
+    buffer_lens.append(tokens)
+
+  seq_group = SequenceGroup(seqs, device=device)
+
+  batch_size = len(prompts)
+  next_token_ids = torch.randint(0, 100, [batch_size], device=device)
+  seq_group.update(next_token_ids)
+
+  for seq, buffer_len, input_len in zip(seqs, buffer_lens, input_lens):
+    assert len(seq.token_buffer) == buffer_len - input_len
