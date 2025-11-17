@@ -133,7 +133,8 @@ def test_sequence_group_full_update(use_seed):
 
   batch_size = len(prompts)
   next_token_ids = torch.randint(0, 100, [batch_size], device=device)
-  seq_group.update(next_token_ids)
+  next_tokens = tokenizer.batch_decode(next_token_ids.tolist())
+  seq_group.update(next_token_ids, next_tokens)
 
   for seq, next_token_id in zip(seqs, next_token_ids.tolist()):
     assert len(seq.token_buffer) == 1
@@ -190,7 +191,8 @@ def test_sequence_group_few_update(use_seed):
 
   batch_size = len(prompts)
   next_token_ids = torch.randint(0, 100, [batch_size], device=device)
-  seq_group.update(next_token_ids)
+  next_tokens = tokenizer.batch_decode(next_token_ids.tolist())
+  seq_group.update(next_token_ids, next_tokens)
 
   for seq, buffer_len, input_len in zip(seqs, buffer_lens, input_lens):
     assert len(seq.token_buffer) == buffer_len - input_len

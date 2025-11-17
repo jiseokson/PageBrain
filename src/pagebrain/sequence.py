@@ -73,10 +73,11 @@ class SequenceGroup:
     for sample_idx, seq in enumerate(seqs):
       self.input_ids[sample_idx, :seq.input_len] = torch.tensor(seq.token_buffer[:seq.input_len])
 
-  def update(self, next_token_ids: torch.Tensor):
-    for seq, next_token_id in zip(self.seqs, next_token_ids.tolist()):
+  def update(self, next_token_ids: torch.Tensor, next_tokens: List[str]):
+    for seq, next_token_id, next_token in zip(self.seqs, next_token_ids.tolist(), next_tokens):
       if seq.input_len == len(seq.token_buffer):
         seq.token_buffer.append(next_token_id)
+        seq.gen_tokens.append(next_token)
         seq.new_token = True
       seq.token_buffer = seq.token_buffer[seq.input_len:]
 
