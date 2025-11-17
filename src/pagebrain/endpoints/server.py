@@ -38,7 +38,6 @@ async def generate(request: GenerationRequest):
     top_p = 0.9 if request.top_p is None else request.top_p,
     top_k = 50  if request.top_k is None else request.top_k,
   )
-  logger.info(f'A new generation request has arrived: {engine_request}')
 
   iterator = engine.add_request(engine_request)
 

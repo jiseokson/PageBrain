@@ -1,0 +1,56 @@
+import heapq
+import itertools
+from typing import List, Optional
+
+from pagebrain.sequence import Sequence, SequenceGroup
+
+
+class Scheduler:
+  def __init__(self, device):
+    self.device = device
+
+    self.seq_pool = []
+    heapq.heapify(self.seq_pool)
+
+    # !! Temporary workaround to avoid comparison operations !!
+    # !! between Seq objects when remain_token is identical  !!
+    self._counter = itertools.count()  
+
+    self.MAX_SEQ_NUMS = 64
+    self.MAX_PREFILL_LEN = 128
+
+  def add(self, seqs: List[Sequence]):
+    # Currently uses the simplest strategy: prioritize sequences with fewer remaining tokens
+    # !! New scheduling policies can be implemented here !!
+    for seq in seqs:
+      remain_tokens = seq.max_new_tokens - len(seq.gen_tokens)
+      _cnt = next(self._counter)
+      heapq.heappush(self.seq_pool, (remain_tokens, _cnt, seq))
+
+  def schedule(self) -> SequenceGroup:
+    seqs = []
+    for _ in range(self.MAX_SEQ_NUMS):
+      try:
+        _, _, seq = heapq.heappop(self.seq_pool)
+        seqs.append(seq)
+      except IndexError:
+        break
+
+      if seq.input_len == 0:
+        seq.input_len = min(len(seq.token_buffer), self.MAX_PREFILL_LEN)
+
+    if len(seqs) == 0:
+      return None
+
+    return SequenceGroup(seqs, device=self.device)
+
+  def update(self, seq_group: SequenceGroup) -> Optional[List[Sequence]]:
+    # Compare the number of tokens generated so far with max_new_tokens
+    # Decide whether to include the sequence back into the scheduler (continue generating)
+    # or exclude it (stop generation). For sequences determined to stop, set done=True.
+    
+    # !! Temporary code that immediately terminates all sequences !!
+    for seq in seq_group.seqs:
+      seq.done = True
+
+    return None

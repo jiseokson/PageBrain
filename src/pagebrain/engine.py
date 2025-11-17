@@ -8,7 +8,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from pagebrain.block import BlockManager
 from pagebrain.cache import CacheManager
 from pagebrain.schedule import Scheduler
-from pagebrain.sequence import Sequence
+from pagebrain.sequence import Sequence, SequenceGroup
 
 
 class EngineRequest:
@@ -59,7 +59,7 @@ class Engine:
     self.tokenizer = AutoTokenizer.from_pretrained(model_name)
     self.tokenizer.pad_token = self.tokenizer.eos_token
 
-    self.scheduler: Scheduler = Scheduler()
+    self.scheduler: Scheduler = Scheduler(device)
     self.block_manager: BlockManager = None
     self.cache_manager: CacheManager = None
     # self.executor(base_model, device)
@@ -101,23 +101,31 @@ class Engine:
 
     if len(seqs) > 0:
       self._init_batch_sequence_before_sched(seqs)
-      # self.scheduler.add(seqs)
+      self.scheduler.add(seqs)
 
     # The scheduler issues the sequence group to generate for this step
     # Adjust the current input position, cache position, and related states
-    pass
+    seq_group: SequenceGroup = self.scheduler.schedule()
+    if seq_group is None:
+      return
 
     # Generate the sequence group issued through the executor
-    # TODO: Execute the SeqGroup issued by the Scheduler and implement updating each seq’s state afterward
-    pass
+    # next_token_ids: torch.Tensor = self.executor.step(seq_group)
+    next_token_ids = torch.randint(1, 100, [len(seq_group.seqs)], device=self.device)
+
+    # Update each state of Sequence in SequenceGroup & Scheduler
+    next_tokens = self.tokenizer.batch_decode(next_token_ids.tolist())
+    seq_group.update(next_token_ids, next_tokens)
+    done_seqs = self.scheduler.update(seq_group)
+    if done_seqs is not None:
+      # self.free_seqs(done_seqs)
+      pass
 
     # After the generation step, deliver tokens for each request and set their events
     # This also needs to be handed over to the executor
-    for seq in seqs:
-      seq.gen_tokens.append(seq.prompt)
-      seq.new_token = True
-      seq.done = True
-      seq.event.set()
+    for seq in seq_group.seqs:
+      if seq.new_token or seq.done:
+        seq.event.set()
 
   async def add_request(self, request: EngineRequest):
     event = asyncio.Event()
