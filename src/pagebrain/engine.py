@@ -7,6 +7,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from pagebrain.block import BlockManager
 from pagebrain.cache import CacheManager
+from pagebrain.executor import Executor
 from pagebrain.schedule import Scheduler
 from pagebrain.sequence import Sequence, SequenceGroup
 
@@ -56,21 +57,21 @@ class Engine:
     self.seq_queue = asyncio.Queue()
     self.MAX_FETCH_REQ_NUMS = 64
 
-    self.base_model = AutoModelForCausalLM.from_pretrained(model_name)
+    self.base_model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
     self.tokenizer = AutoTokenizer.from_pretrained(model_name)
     self.tokenizer.pad_token = self.tokenizer.eos_token
 
     self.scheduler: Scheduler = Scheduler(device)
     self.block_manager: BlockManager = None
     self.cache_manager: CacheManager = None
-    # self.executor(base_model, device)
+    self.executor: Executor = None
 
   def start(self):
     # !! Need logic to determine BlockManager constructor arguments from current model and hardware settings !!
     num_blocks = 100
     num_layers = 12
     num_heads = 12
-    d_head = 768
+    d_head = 64
     page_size = 32
     kv_dtype = torch.float32
 
@@ -83,8 +84,8 @@ class Engine:
       device=self.device,
       dtype=kv_dtype,
     )
-
     self.cache_manager = CacheManager(self.block_manager)
+    self.executor = Executor(self.model_name, self.base_model, self.cache_manager, self.device)
 
     asyncio.create_task(self.engine_loop())
 
@@ -111,8 +112,8 @@ class Engine:
       return
 
     # Generate the sequence group issued through the executor
-    # next_token_ids: torch.Tensor = self.executor.step(seq_group)
-    next_token_ids = torch.randint(1, 100, [len(seq_group.seqs)], device=self.device)
+    next_token_ids: torch.Tensor = self.executor.step(seq_group)
+    # next_token_ids = torch.randint(1, 100, [len(seq_group.seqs)], device=self.device)
 
     # Update each state of Sequence in SequenceGroup & Scheduler
     next_tokens = self.tokenizer.batch_decode(next_token_ids.tolist())

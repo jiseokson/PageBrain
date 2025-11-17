@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import List, Literal, Optional
 import uuid
 
@@ -85,7 +86,7 @@ class SequenceGroup:
       [self.cache_pos[:, 0], self.input_pos[:, 0] + self.input_pos[:, 1]], dim=-1
     )
     input_pos = torch.stack(
-      [self.cache_pos[:, 1], torch.ones([self.batch_size], device=self.device, dtype=torch.long)], dim=-1
+      [cache_pos[:, 1], torch.ones([self.batch_size], device=self.device, dtype=torch.long)], dim=-1
     )
 
     for seq, (cache_start, cache_len) in zip(self.seqs, cache_pos.tolist()):

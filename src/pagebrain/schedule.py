@@ -32,6 +32,7 @@ class Scheduler:
     for _ in range(self.MAX_SEQ_NUMS):
       try:
         _, _, seq = heapq.heappop(self.seq_pool)
+        if seq.new_token: continue
         seqs.append(seq)
       except IndexError:
         break
