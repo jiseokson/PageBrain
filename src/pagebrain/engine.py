@@ -54,6 +54,7 @@ class Engine:
     self.device = device
 
     self.seq_queue = asyncio.Queue()
+    self.MAX_FETCH_REQ_NUMS = 64
 
     self.base_model = AutoModelForCausalLM.from_pretrained(model_name)
     self.tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -95,7 +96,7 @@ class Engine:
   async def step(self):
     # Gather newly arrived requests and add them to the scheduler
     seqs = []
-    while not self.seq_queue.empty():
+    while not self.seq_queue.empty() and len(seqs) < self.MAX_FETCH_REQ_NUMS:
       seq = await self.seq_queue.get()
       seqs.append(seq)
 
@@ -115,10 +116,13 @@ class Engine:
 
     # Update each state of Sequence in SequenceGroup & Scheduler
     next_tokens = self.tokenizer.batch_decode(next_token_ids.tolist())
+    # Sequence group update and scheduler update must be applied in this order
+    # because the scheduler determines completion based on the number of newly generated tokens.
     seq_group.update(next_token_ids, next_tokens)
     done_seqs = self.scheduler.update(seq_group)
     if done_seqs is not None:
-      # self.free_seqs(done_seqs)
+      seq_ids = [seq.id for seq in done_seqs]
+      self.cache_manager.free(seq_ids)
       pass
 
     # After the generation step, deliver tokens for each request and set their events

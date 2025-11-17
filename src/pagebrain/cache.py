@@ -186,7 +186,9 @@ class CacheManager:
   ) -> Tuple[torch.Tensor, torch.Tensor, int]:
     pass
 
-  def free(self, seq_ids: List[SeqId], layer_idx: int):
+  def free(self, seq_ids: List[SeqId]):
+    num_layers = self.block_manager.num_layers
     for seq_id in seq_ids:
-      block_ids = self.block_table[(seq_id, layer_idx)]
-      self.block_manager.free(layer_idx, block_ids)
+      for layer_idx in range(num_layers):
+        block_ids = self.block_table[(seq_id, layer_idx)]
+        self.block_manager.free(layer_idx, block_ids)

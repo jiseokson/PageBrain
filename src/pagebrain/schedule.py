@@ -48,9 +48,14 @@ class Scheduler:
     # Compare the number of tokens generated so far with max_new_tokens
     # Decide whether to include the sequence back into the scheduler (continue generating)
     # or exclude it (stop generation). For sequences determined to stop, set done=True.
-    
-    # !! Temporary code that immediately terminates all sequences !!
+    done_seqs = []
+    gen_seqs = []
     for seq in seq_group.seqs:
-      seq.done = True
+      if len(seq.gen_tokens) == seq.max_new_tokens:
+        seq.done = True
+        done_seqs.append(seq)
+      else:
+        gen_seqs.append(seq)
 
-    return None
+    self.add(gen_seqs)
+    return done_seqs
