@@ -45,8 +45,6 @@ class Scheduler:
 
     if len(seqs) == 0:
       return None
-    
-    logger.info(f'Scheduler.schedule(): len(seqs)={len(seqs)}')
 
     return SequenceGroup(seqs, device=self.device)
 

@@ -107,6 +107,18 @@ class CacheManager:
     # Compute index range of target pages to read
     first_page_ids = cache_pos[:, 0] // self.page_size                        # [B]
     last_page_ids = (cache_pos[:, 0] + cache_pos[:, 1] - 1) // self.page_size # [B]
+    
+    # Block index list of batch samples
+    # Adjust so that every sample has the block ID of the first block
+    # that actually contains data to read
+    batch_block_ids = []
+    for seq_id, first_page_idx in zip(seq_ids, first_page_ids.tolist()):
+      block_ids = self.block_table[(seq_id, layer_idx)]
+      batch_block_ids.append(block_ids[first_page_idx:])
+
+    last_page_ids -= first_page_ids
+    first_page_ids[:] = 0
+
     src_offset = cache_pos[:, 0] % self.page_size # [B]
     remain_tokens = cache_pos[:, 1].clone()     # [B]
     min_page_idx = torch.min(first_page_ids).item()
@@ -117,13 +129,6 @@ class CacheManager:
     logger.debug(f'src_offset:     {src_offset.tolist()}')
     logger.debug(f'remain_tokens:  {remain_tokens.tolist()}')
     logger.debug(f'target page index range: [{min_page_idx}, {max_page_idx}]')
-
-    # Block index list of batch samples
-    batch_block_ids = []
-    for seq_id in seq_ids:
-      block_ids = self.block_table[(seq_id, layer_idx)]
-      batch_block_ids.append(block_ids)
-
     logger.debug(f'batch_block_ids: {batch_block_ids}')
 
     # Before reading, fetch cache spec information
