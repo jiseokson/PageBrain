@@ -20,14 +20,14 @@ class Scheduler:
     # !! between Seq objects when remain_token is identical  !!
     self._counter = itertools.count()  
 
-    self.MAX_SEQ = 128
+    self.MAX_SEQ = 256
     self.MAX_PREFILL_LEN = 128
 
   def add(self, seqs: List[Sequence]):
     # Currently uses the simplest strategy: prioritize sequences with fewer remaining tokens
     # !! New scheduling policies can be implemented here !!
     for seq in seqs:
-      remain_tokens = seq.max_new_tokens - len(seq.gen_tokens)
+      remain_tokens = seq.max_new_tokens - len(seq.gen_tokens) + len(seq.token_buffer)
       _cnt = next(self._counter)
       heapq.heappush(self.seq_pool, (remain_tokens, _cnt, seq))
 

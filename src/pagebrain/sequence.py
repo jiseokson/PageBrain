@@ -31,7 +31,6 @@ class Sequence:
     self.event: asyncio.Event = event
     # If SequenceGroup.update() finishes processing all tokens in the token buffer,
     # insert a new token into the buffer for the next generation step and set new_token=True.
-    # self.new_token = False
     # Set when the Engine determines that gen_tokens has reached max_new_tokens
     self.done = False
     # Decoding of generated token is handled by the Engine
