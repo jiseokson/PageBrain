@@ -81,7 +81,7 @@ class PagedGPT2Attention(nn.Module):
 
     for k_p, v_p, page_pos in self.cache_manager.iter_page(seq_ids, self.layer_idx, cache_pos):
       attn_mask = make_attn_mask(batch_size, self.page_size, page_pos, device)
-      s_p = q @ k_p.transpose(-1, -2) * scale + attn_mask
+      s_p = q @ k_p.transpose(-1, -2) * scale
       s_p = s_p.masked_fill(attn_mask, torch.finfo(dtype).min)
 
       m_p = s_p.max(dim=-1, keepdim=True).values

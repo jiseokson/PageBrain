@@ -190,5 +190,7 @@ class CacheManager:
     num_layers = self.block_manager.num_layers
     for seq_id in seq_ids:
       for layer_idx in range(num_layers):
-        block_ids = self.block_table[(seq_id, layer_idx)]
+        key = (seq_id, layer_idx)
+        block_ids = self.block_table[key]
         self.block_manager.free(layer_idx, block_ids)
+        del self.block_table[key]
