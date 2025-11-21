@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from typing import List, Literal, Optional
 
 import torch
@@ -10,6 +11,9 @@ from pagebrain.cache import CacheManager
 from pagebrain.executor import Executor
 from pagebrain.schedule import Scheduler
 from pagebrain.sequence import Sequence, SequenceGroup
+
+
+logger = logging.getLogger('uvicorn')
 
 
 class EngineRequest:
@@ -55,7 +59,7 @@ class Engine:
     self.device = device
 
     self.seq_queue = asyncio.Queue()
-    self.MAX_FETCH_REQ_NUMS = 64
+    self.MAX_FETCH_REQ = 64
 
     self.base_model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
     self.tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -68,7 +72,7 @@ class Engine:
 
   def start(self):
     # !! Need logic to determine BlockManager constructor arguments from current model and hardware settings !!
-    num_blocks = 100
+    num_blocks = 200
     num_layers = 12
     num_heads = 12
     d_head = 64
@@ -97,7 +101,7 @@ class Engine:
   async def step(self):
     # Gather newly arrived requests and add them to the scheduler
     seqs = []
-    while not self.seq_queue.empty() and len(seqs) < self.MAX_FETCH_REQ_NUMS:
+    while not self.seq_queue.empty() and len(seqs) < self.MAX_FETCH_REQ:
       seq = await self.seq_queue.get()
       seqs.append(seq)
 
@@ -113,7 +117,6 @@ class Engine:
 
     # Generate the sequence group issued through the executor
     next_token_ids: torch.Tensor = self.executor.step(seq_group)
-    # next_token_ids = torch.randint(1, 100, [len(seq_group.seqs)], device=self.device)
 
     # Update each state of Sequence in SequenceGroup & Scheduler
     next_tokens = self.tokenizer.batch_decode(next_token_ids.tolist())
@@ -124,13 +127,11 @@ class Engine:
     if done_seqs is not None:
       seq_ids = [seq.id for seq in done_seqs]
       self.cache_manager.free(seq_ids)
-      pass
 
     # After the generation step, deliver tokens for each request and set their events
     # This also needs to be handed over to the executor
     for seq in seq_group.seqs:
-      if seq.new_token or seq.done:
-        seq.event.set()
+      seq.event.set()
 
   async def add_request(self, request: EngineRequest):
     event = asyncio.Event()
@@ -155,13 +156,13 @@ class Engine:
       await event.wait()
       event.clear()
 
-      if seq.new_token:
+      while seq.reply_idx < len(seq.gen_tokens):
         token_event = {
           'event': 'token',
           'request_id': seq.id,
           'text': seq.gen_tokens[-1],
         }
-        seq.new_token = False
+        seq.reply_idx += 1
         yield f'data: {json.dumps(token_event, ensure_ascii=False)}\n\n'
 
       if seq.done:

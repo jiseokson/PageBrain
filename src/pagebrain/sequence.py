@@ -31,17 +31,18 @@ class Sequence:
     self.event: asyncio.Event = event
     # If SequenceGroup.update() finishes processing all tokens in the token buffer,
     # insert a new token into the buffer for the next generation step and set new_token=True.
-    self.new_token = False
+    # self.new_token = False
     # Set when the Engine determines that gen_tokens has reached max_new_tokens
     self.done = False
+    # Decoding of generated token is handled by the Engine
+    self.gen_tokens: List[str] = []
+    self.reply_idx = 0
 
     self.token_buffer: List[int] = []
     self.cache_start: int = 0
     self.cache_len: int = 0
     self.input_start: int = 0
     self.input_len: int = 0
-    # Decoding of generated token is handled by the Engine
-    self.gen_tokens: List[str] = []
 
 
 class SequenceGroup:
@@ -79,7 +80,6 @@ class SequenceGroup:
       if seq.input_len == len(seq.token_buffer):
         seq.token_buffer.append(next_token_id)
         seq.gen_tokens.append(next_token)
-        seq.new_token = True
       seq.token_buffer = seq.token_buffer[seq.input_len:]
 
     cache_pos = torch.stack(

@@ -1,8 +1,12 @@
 import heapq
 import itertools
+import logging
 from typing import List, Optional
 
 from pagebrain.sequence import Sequence, SequenceGroup
+
+
+logger = logging.getLogger('uvicorn')
 
 
 class Scheduler:
@@ -16,7 +20,7 @@ class Scheduler:
     # !! between Seq objects when remain_token is identical  !!
     self._counter = itertools.count()  
 
-    self.MAX_SEQ_NUMS = 64
+    self.MAX_SEQ = 128
     self.MAX_PREFILL_LEN = 128
 
   def add(self, seqs: List[Sequence]):
@@ -29,10 +33,9 @@ class Scheduler:
 
   def schedule(self) -> SequenceGroup:
     seqs = []
-    for _ in range(self.MAX_SEQ_NUMS):
+    for _ in range(self.MAX_SEQ):
       try:
         _, _, seq = heapq.heappop(self.seq_pool)
-        if seq.new_token: continue
         seqs.append(seq)
       except IndexError:
         break
@@ -42,6 +45,8 @@ class Scheduler:
 
     if len(seqs) == 0:
       return None
+    
+    logger.info(f'Scheduler.schedule(): len(seqs)={len(seqs)}')
 
     return SequenceGroup(seqs, device=self.device)
 
