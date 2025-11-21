@@ -1,3 +1,4 @@
+from argparse import Namespace
 import asyncio
 import json
 import logging
@@ -8,6 +9,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from pagebrain.block import BlockManager
 from pagebrain.cache import CacheManager
+from pagebrain.config import PageBrainConfig
 from pagebrain.executor import Executor
 from pagebrain.schedule import Scheduler
 from pagebrain.sequence import Sequence, SequenceGroup
@@ -54,43 +56,54 @@ class EngineRequest:
 
 
 class Engine:
-  def __init__(self, model_name: str, device):
-    self.model_name = model_name
-    self.device = device
+  def __init__(self, config: PageBrainConfig):
+    self.config = config
 
     self.seq_queue = asyncio.Queue()
-    self.MAX_FETCH_REQ = 64
+    self.MAX_FETCH_REQ = config.MAX_FETCH_REQ
 
-    self.base_model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
-    self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-    self.tokenizer.pad_token = self.tokenizer.eos_token
+    self.base_model = None
+    self.tokenizer = None
 
-    self.scheduler: Scheduler = Scheduler(device)
+    self.scheduler: Scheduler = None
     self.block_manager: BlockManager = None
     self.cache_manager: CacheManager = None
     self.executor: Executor = None
 
-  def start(self):
+  def _init(self):
+    self.base_model = AutoModelForCausalLM.from_pretrained(self.config.model_name).to(self.config.device)
+    self.config.base_model_config = self.base_model.config
+
+    self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name)
+    self.tokenizer.pad_token = self.tokenizer.eos_token
+
     # !! Need logic to determine BlockManager constructor arguments from current model and hardware settings !!
-    num_blocks = 200
-    num_layers = 12
-    num_heads = 12
-    d_head = 64
-    page_size = 32
-    kv_dtype = torch.float32
+    self.config.num_blocks = 200
+    self.config.num_layers = 12
+    self.config.num_heads = 12
+    self.config.d_head = 64
 
     self.block_manager = BlockManager(
-      num_blocks=num_blocks,
-      num_layers=num_layers,
-      num_heads=num_heads,
-      d_head=d_head,
-      page_size=page_size,
-      device=self.device,
-      dtype=kv_dtype,
+      num_blocks=self.config.num_blocks,
+      num_layers=self.config.num_layers,
+      num_heads=self.config.num_heads,
+      d_head=self.config.d_head,
+      page_size=self.config.page_size,
+      dtype=self.config.kv_dtype,
+      device=self.config.device,
     )
     self.cache_manager = CacheManager(self.block_manager)
-    self.executor = Executor(self.model_name, self.base_model, self.cache_manager, self.device)
 
+    self.scheduler = Scheduler(self.config.device)
+    self.executor = Executor(
+      self.config.model_name,
+      self.base_model,
+      self.cache_manager,
+      self.config.device
+    )
+
+  def start(self):
+    self._init()
     asyncio.create_task(self.engine_loop())
 
   async def engine_loop(self):
@@ -178,7 +191,7 @@ class Engine:
   def _init_batch_sequence_before_sched(self, seqs: List[Sequence]):
     # Before adding to the scheduler, pre-encode the tokens to be processed next
     prompts = [seq.prompt for seq in seqs]
-    inputs = self.tokenizer(prompts, return_tensors='pt', padding=True).to(self.device)
+    inputs = self.tokenizer(prompts, return_tensors='pt', padding=True).to(self.config.device)
 
     input_ids = inputs['input_ids']
     input_lens = inputs['attention_mask'].sum(dim=-1).tolist()

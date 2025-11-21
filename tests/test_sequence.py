@@ -1,9 +1,12 @@
+import argparse
 import asyncio
 import logging
 import random
 
 import torch
 from transformers import AutoTokenizer
+from pagebrain.config import PageBrainConfig
+from pagebrain.endpoints.args import get_args_parser
 from pagebrain.engine import Engine
 from pagebrain.sequence import Sequence, SequenceGroup
 from utils import make_engine_reqs, set_random_seed
@@ -52,7 +55,13 @@ def test_sequence_group(use_seed):
     )
     seqs.append(seq)
 
-  engine = Engine(model_name=model_name, device=device)
+  parser: argparse.ArgumentParser = get_args_parser()
+  args = parser.parse_args()
+  args.model = model_name
+  args.device = device
+  config = PageBrainConfig(args)
+  engine = Engine(config)
+  engine._init()
   # Fill the token_buffer using the function below
   # Tests for this function are written in test_engine.py
   engine._init_batch_sequence_before_sched(seqs)
@@ -105,7 +114,13 @@ def test_sequence_group_full_update(use_seed):
     )
     seqs.append(seq)
 
-  engine = Engine(model_name=model_name, device=device)
+  parser: argparse.ArgumentParser = get_args_parser()
+  args = parser.parse_args()
+  args.model = model_name
+  args.device = device
+  config = PageBrainConfig(args)
+  engine = Engine(config)
+  engine._init()
   # Fill the token_buffer using the function below
   # Tests for this function are written in test_engine.py
   engine._init_batch_sequence_before_sched(seqs)
@@ -160,7 +175,13 @@ def test_sequence_group_few_update(use_seed):
     )
     seqs.append(seq)
 
-  engine = Engine(model_name=model_name, device=device)
+  parser: argparse.ArgumentParser = get_args_parser()
+  args = parser.parse_args()
+  args.model = model_name
+  args.device = device
+  config = PageBrainConfig(args)
+  engine = Engine(config)
+  engine._init()
   # Fill the token_buffer using the function below
   # Tests for this function are written in test_engine.py
   engine._init_batch_sequence_before_sched(seqs)

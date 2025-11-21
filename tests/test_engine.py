@@ -1,8 +1,11 @@
+import argparse
 import asyncio
 import logging
 import torch
 from transformers import AutoTokenizer
-from pagebrain.engine import Engine, EngineRequest
+from pagebrain.config import PageBrainConfig
+from pagebrain.endpoints.args import get_args_parser
+from pagebrain.engine import Engine
 from pagebrain.sequence import Sequence
 from utils import make_engine_reqs, set_random_seed
 
@@ -65,7 +68,10 @@ def test__init_batch_sequence_before_sched(use_seed):
   inputs = tokenizer(prompts, return_tensors='pt', padding=True).to(device)
   input_lens = inputs['attention_mask'].sum(dim=-1)
 
-  engine = Engine(model_name=model_name, device=device)
+  parser: argparse.ArgumentParser = get_args_parser()
+  config = PageBrainConfig(parser.parse_args())
+  engine = Engine(config)
+  engine._init()
   engine._init_batch_sequence_before_sched(seqs)
 
   for seq, input_len in zip(seqs, input_lens.tolist()):

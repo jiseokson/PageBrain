@@ -1,14 +1,13 @@
-import argparse
 from contextlib import asynccontextmanager
-import json
 import logging
 from typing import Literal, Optional
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-import torch
 import uvicorn
 
+from pagebrain.config import PageBrainConfig
+from pagebrain.endpoints.args import get_args_parser
 from pagebrain.endpoints.logo import logo_ascii_art
 from pagebrain.engine import Engine, EngineRequest
 
@@ -45,36 +44,12 @@ async def generate(request: GenerationRequest):
 
 
 def main():
-  parser = argparse.ArgumentParser(
-    description=logo_ascii_art,
-    formatter_class=argparse.RawDescriptionHelpFormatter
-  )
-
-  parser.add_argument(
-    '--host', type=str, default='0.0.0.0',
-    help='Host address',
-  )
-  parser.add_argument(
-    '--port', type=int, default=8000,
-    help='Port number',
-  )
-
-  parser.add_argument(
-    '--model', type=str, default='openai-community/gpt2',
-    help='Name of the language model to load (HuggingFace model ID)'
-  )
-  parser.add_argument(
-    '--device', type=str, default='cuda:0',
-    help='Device to run the model on'
-  )
-
+  parser = get_args_parser()
   args = parser.parse_args()
+  pagebrain_config = PageBrainConfig(args)
 
   global engine
-  engine = Engine(
-    model_name=args.model,
-    device=args.device,
-  )
+  engine = Engine(config=pagebrain_config)
 
   @asynccontextmanager
   async def lifespan(app: FastAPI):
