@@ -5,7 +5,11 @@ import torch
 
 class PageBrainConfig:
   def __init__(self, args: Namespace):
+    # Engine
     self.MAX_FETCH_REQ = 64
+    # Scheduler
+    self.MAX_SEQ = 256
+    self.MAX_PREFILL_LEN = 128
 
     self.host = args.host
     self.port = args.port

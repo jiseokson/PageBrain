@@ -57,7 +57,7 @@ class EngineRequest:
 
 class Engine:
   def __init__(self, config: PageBrainConfig):
-    self.config = config
+    self.config: PageBrainConfig = config
 
     self.seq_queue = asyncio.Queue()
     self.MAX_FETCH_REQ = config.MAX_FETCH_REQ
@@ -83,23 +83,14 @@ class Engine:
     self.config.num_heads = 12
     self.config.d_head = 64
 
-    self.block_manager = BlockManager(
-      num_blocks=self.config.num_blocks,
-      num_layers=self.config.num_layers,
-      num_heads=self.config.num_heads,
-      d_head=self.config.d_head,
-      page_size=self.config.page_size,
-      dtype=self.config.kv_dtype,
-      device=self.config.device,
-    )
-    self.cache_manager = CacheManager(self.block_manager)
+    self.block_manager = BlockManager(self.config)
+    self.cache_manager = CacheManager(self.block_manager, self.config)
 
-    self.scheduler = Scheduler(self.config.device)
+    self.scheduler = Scheduler(self.config)
     self.executor = Executor(
-      self.config.model_name,
-      self.base_model,
-      self.cache_manager,
-      self.config.device
+      base_model=self.base_model,
+      cache_manager=self.cache_manager,
+      config=self.config,
     )
 
   def start(self):

@@ -2,18 +2,24 @@ from typing import List
 
 import torch
 
+from pagebrain.config import PageBrainConfig
 
-# Separate block index space for each K, V, and layer_idx
+
+# Separate block index space for each KV, and layer_idx
 class BlockManager:
-  def __init__(self, num_blocks, num_layers, num_heads, d_head, page_size, device, dtype):
-    self.num_blocks = num_blocks
-    self.num_layers = num_layers
-    self.num_heads = num_heads
-    self.d_head = d_head
-    self.page_size = page_size
+  def __init__(self, config: PageBrainConfig):
+    self.config = config
+    self.num_blocks = config.num_blocks
+    self.num_layers = config.num_layers
+    self.num_heads = config.num_heads
+    self.d_head = config.d_head
+    self.page_size = config.page_size
 
-    self.device = device
-    self.dtype = dtype
+    self.device = config.device
+    self.dtype = config.dtype
+
+    num_blocks, num_layers, num_heads, page_size, d_head = self.num_blocks, self.num_layers, self.num_heads, self.page_size, self.d_head
+    device, dtype  = self.device, self.dtype
 
     self.gpu_k_pool = [
       torch.empty([num_blocks, num_heads, page_size, d_head], device=device, dtype=dtype)

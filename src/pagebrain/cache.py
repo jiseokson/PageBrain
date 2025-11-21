@@ -5,6 +5,7 @@ from typing import Generator, List, Tuple
 import torch
 
 from pagebrain.block import BlockManager
+from pagebrain.config import PageBrainConfig
 from pagebrain.sequence import SeqId
 
 
@@ -13,7 +14,9 @@ logger = logging.getLogger(__name__)
 
 # !! Temporary workaround: implemented by directly accessing BlockManager.pool for recording !!
 class CacheManager:
-  def __init__(self, block_manager: BlockManager):
+  def __init__(self, block_manager: BlockManager, config: PageBrainConfig):
+    self.config = config
+    
     self.block_manager: BlockManager = block_manager
     self.block_table = defaultdict(list)
     self.page_size = block_manager.page_size

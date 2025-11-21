@@ -1,6 +1,7 @@
 import logging
 import torch
 from torch.nn import functional as F
+from pagebrain.config import PageBrainConfig
 from pagebrain.models.gpt2 import PagedGPT2LMHeadModel
 from pagebrain.sequence import SequenceGroup
 
@@ -58,13 +59,16 @@ def sample_top_k(logits: torch.Tensor, temperature: torch.Tensor, k: torch.Tenso
 
 
 class Executor:
-  def __init__(self, model_name, base_model, cache_manager, device):
-    self.model_name = model_name
+  def __init__(self, base_model, cache_manager, config: PageBrainConfig):
     self.base_model = base_model
-    self.device = device
+    self.cache_manager = cache_manager
+
+    self.config = config
+    self.model_name = config.model_name
+    self.device = config.device
 
     # !! Need logic to select the appropriate implementation based on model_name !!
-    self.model = PagedGPT2LMHeadModel(base_model, cache_manager).to(device)
+    self.model = PagedGPT2LMHeadModel(base_model, cache_manager).to(self.device)
     self.model.eval()
 
   def step(self, seq_group: SequenceGroup) -> torch.Tensor:

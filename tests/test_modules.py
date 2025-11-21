@@ -1,3 +1,4 @@
+import argparse
 import logging
 import uuid
 
@@ -5,6 +6,8 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from pagebrain.block import BlockManager
 from pagebrain.cache import CacheManager
+from pagebrain.config import PageBrainConfig
+from pagebrain.endpoints.args import get_args_parser
 from pagebrain.modules import PagedGPT2Attention
 from utils import set_random_seed
 
@@ -67,11 +70,21 @@ def test_PagedGPT2Attention_prefill(use_seed):
       layer_attn_input_states.append(attn_input_states)
       layer_attn_output_states.append(attn_output_states)
 
-  num_blocks = 1000
-  page_size = 32
+  parser: argparse.ArgumentParser = get_args_parser()
+  args = parser.parse_args()
+  args.model = model_name
+  args.device = device
 
-  block_manager = BlockManager(num_blocks, num_layers, num_heads, d_head, page_size, device, dtype=kv_dtype)
-  cache_manager = CacheManager(block_manager)
+  config = PageBrainConfig(args)
+  config.num_blocks = 1000
+  config.page_size = 32
+  config.num_heads = num_heads
+  config.num_layers = num_layers
+  config.d_head = d_head
+  config.kv_dtype = kv_dtype
+
+  block_manager = BlockManager(config)
+  cache_manager = CacheManager(block_manager, config)
 
   # Create a PagedAttention module for each layer
   layer_paged_attn = [
@@ -142,11 +155,21 @@ def test_PagedGPT2Attention_step_after_prefill(use_seed):
       layer_attn_output_states.append(attn_output_states)
 
   # PagedAttention accesses the KV cache through CacheManager, so create this object
-  num_blocks = 1000
-  page_size = 32
+  parser: argparse.ArgumentParser = get_args_parser()
+  args = parser.parse_args()
+  args.model = model_name
+  args.device = device
 
-  block_manager = BlockManager(num_blocks, num_layers, num_heads, d_head, page_size, device, dtype=kv_dtype)
-  cache_manager = CacheManager(block_manager)
+  config = PageBrainConfig(args)
+  config.num_blocks = 1000
+  config.page_size = 32
+  config.num_heads = num_heads
+  config.num_layers = num_layers
+  config.d_head = d_head
+  config.kv_dtype = kv_dtype
+
+  block_manager = BlockManager(config)
+  cache_manager = CacheManager(block_manager, config)
 
   # Write the KV cache obtained from the HF model’s prefill forward
   seq_ids = [str(uuid.uuid4().hex) for _ in range(batch_size)]
@@ -229,11 +252,21 @@ def test_PagedGPT2Attention_step_and_prefill_mixed(use_seed):
   input_pos[:, 1] = prefill_len - input_pos[:, 0]
 
   # PagedAttention accesses the KV cache through CacheManager, so create this object
-  num_blocks = 1000
-  page_size = 32
+  parser: argparse.ArgumentParser = get_args_parser()
+  args = parser.parse_args()
+  args.model = model_name
+  args.device = device
 
-  block_manager = BlockManager(num_blocks, num_layers, num_heads, d_head, page_size, device, dtype=kv_dtype)
-  cache_manager = CacheManager(block_manager)
+  config = PageBrainConfig(args)
+  config.num_blocks = 1000
+  config.page_size = 32
+  config.num_heads = num_heads
+  config.num_layers = num_layers
+  config.d_head = d_head
+  config.kv_dtype = kv_dtype
+
+  block_manager = BlockManager(config)
+  cache_manager = CacheManager(block_manager, config)
 
   # Write the KV cache obtained from the HF model’s prefill forward
   seq_ids = [str(uuid.uuid4().hex) for _ in range(batch_size)]

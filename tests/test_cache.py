@@ -1,3 +1,4 @@
+import argparse
 import logging
 import random
 import uuid
@@ -6,6 +7,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from pagebrain.block import BlockManager
 from pagebrain.cache import CacheManager
+from pagebrain.config import PageBrainConfig
+from pagebrain.endpoints.args import get_args_parser
 from utils import make_dummy_input_cache_pos, make_dummy_keys_values, set_random_seed
 
 
@@ -31,14 +34,25 @@ kv_dtype = torch.float32
 def test_prefill_update(use_seed):
   if use_seed:
     set_random_seed(42)
-  
-  num_blocks = 1000
+
   batch_size = 10
   max_len = 100
-  page_size = 32
 
-  block_manager = BlockManager(num_blocks, num_layers, num_heads, d_head, page_size, device, dtype=kv_dtype)
-  cache_manager = CacheManager(block_manager)
+  parser: argparse.ArgumentParser = get_args_parser()
+  args = parser.parse_args()
+  args.model = model_name
+  args.device = device
+
+  config = PageBrainConfig(args)
+  config.num_blocks = 1000
+  config.page_size = 32
+  config.num_layers = num_layers
+  config.num_heads = num_heads
+  config.d_head = d_head
+  config.kv_dtype = kv_dtype
+
+  block_manager = BlockManager(config)
+  cache_manager = CacheManager(block_manager, config)
 
   layer_idx = 0
   seq_ids = [str(uuid.uuid4().hex) for _ in range(batch_size)]
@@ -72,14 +86,25 @@ def test_prefill_update(use_seed):
 def test_step_update(use_seed):
   if use_seed:
     set_random_seed(42)
-  
-  num_blocks = 1000
+
   batch_size = 10
   max_len = 100
-  page_size = 32
 
-  block_manager = BlockManager(num_blocks, num_layers, num_heads, d_head, page_size, device, dtype=kv_dtype)
-  cache_manager = CacheManager(block_manager)
+  parser: argparse.ArgumentParser = get_args_parser()
+  args = parser.parse_args()
+  args.model = model_name
+  args.device = device
+
+  config = PageBrainConfig(args)
+  config.num_blocks = 1000
+  config.page_size = 32
+  config.num_layers = num_layers
+  config.num_heads = num_heads
+  config.d_head = d_head
+  config.kv_dtype = kv_dtype
+
+  block_manager = BlockManager(config)
+  cache_manager = CacheManager(block_manager, config)
 
   layer_idx = 0
   seq_ids = [str(uuid.uuid4().hex) for _ in range(batch_size)]

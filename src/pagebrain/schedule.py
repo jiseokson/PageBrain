@@ -3,6 +3,7 @@ import itertools
 import logging
 from typing import List, Optional
 
+from pagebrain.config import PageBrainConfig
 from pagebrain.sequence import Sequence, SequenceGroup
 
 
@@ -10,8 +11,9 @@ logger = logging.getLogger('uvicorn')
 
 
 class Scheduler:
-  def __init__(self, device):
-    self.device = device
+  def __init__(self, config: PageBrainConfig):
+    self.config: PageBrainConfig = config
+    self.device = config.device
 
     self.seq_pool = []
     heapq.heapify(self.seq_pool)
@@ -20,8 +22,8 @@ class Scheduler:
     # !! between Seq objects when remain_token is identical  !!
     self._counter = itertools.count()  
 
-    self.MAX_SEQ = 256
-    self.MAX_PREFILL_LEN = 128
+    self.MAX_SEQ = config.MAX_SEQ
+    self.MAX_PREFILL_LEN = config.MAX_PREFILL_LEN
 
   def add(self, seqs: List[Sequence]):
     # Currently uses the simplest strategy: prioritize sequences with fewer remaining tokens
