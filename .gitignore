@@ -23,6 +23,7 @@ venv/
 *.log
 *.tmp
 *.bak
+*.csv
 
 # Test / coverage
 htmlcov/
