@@ -71,7 +71,9 @@ class Engine:
     self.executor: Executor = None
 
   def _init(self):
-    self.base_model = AutoModelForCausalLM.from_pretrained(self.config.model_name).to(self.config.device)
+    self.base_model = AutoModelForCausalLM.from_pretrained(
+      self.config.model_name, torch_dtype=self.config.dtype,
+    ).to(self.config.device)
     self.config.base_model_config = self.base_model.config
 
     self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name)
