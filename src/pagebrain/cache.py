@@ -191,8 +191,39 @@ class CacheManager:
     seq_ids: List[SeqId],
     layer_idx: int,
     cache_pos: torch.Tensor
-  ) -> Tuple[torch.Tensor, torch.Tensor, int]:
-    pass
+  ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    # Compute index range of target pages to read
+    first_page_ids = cache_pos[:, 0] // self.page_size                        # [B]
+    last_page_ids = (cache_pos[:, 0] + cache_pos[:, 1] - 1) // self.page_size # [B]
+    first_offsets = cache_pos[:, 0] % self.page_size                          # [B]
+
+    batch_block_ids = []
+    batch_offsets = []
+    batch_lens = []
+    max_pages = 0
+    for seq_id, first_page_idx, last_page_idx, first_offset, num_token in \
+      zip(seq_ids, first_page_ids.tolist(), last_page_ids.tolist(), first_offsets.tolist(), cache_pos[:, 1].tolist()):
+      
+      num_pages = last_page_idx - first_page_idx + 1
+      first_len = self.page_size - first_offset
+      last_len = num_token - first_len - self.page_size * (num_pages - 2)
+
+      block_ids = self.block_table[(seq_id, layer_idx)]
+      batch_block_ids.append(block_ids[first_page_idx : last_page_idx+1])
+      batch_offsets.append([first_offset] + [0] * (num_pages - 1))
+      batch_lens.append([first_len] + [self.page_size] * (num_pages - 2) + [last_len])
+
+      max_pages = max(max_pages, num_pages)
+
+    def pad(lst, pad_val):
+      return [row + [pad_val] * (max_pages - len(row)) for row in lst]
+
+    device = self.block_manager.device
+    block_ids = torch.tensor(pad(batch_block_ids, 0), device=device, dtype=torch.long)
+    offsets = torch.tensor(pad(batch_offsets, 0), device=device, dtype=torch.long)
+    lens = torch.tensor(pad(batch_lens, 0), device=device, dtype=torch.long)
+
+    return block_ids, offsets, lens
 
   def free(self, seq_ids: List[SeqId]):
     num_layers = self.block_manager.num_layers
