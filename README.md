@@ -41,9 +41,61 @@ This project was developed as a graduation capstone and continues to evolve into
 
 ## 🔍 PagedAttention
 <div align="center">
-    <img src="https://github.com/user-attachments/assets/7cda546e-7401-4c07-9f4b-22cc3f995676" alt="PagedAttention" width="70%">
-    <p>Fig.2 - Illustraion of PagedAttention</p>
+    <img src="https://github.com/user-attachments/assets/c45f9ba9-ea4f-4e44-90ce-e07fe84d24b8" alt="Attention" width="50%">
+    <p>Fig.2 - Illustraion of attention</p>
 </div>
+Modern decoder-only Transformers rely on a repeated attention loop during text generation.
+At every generation step, the model:
+
+1. receives a new input sequence,
+2. computes new q, k, v vectors for the final token,
+3. attends to all previous key/value vectors,
+4. and produces the next output token.
+
+During this process, one important observation is that previous K/V vectors never change.
+Thus, these intermediate results are typically cached and reused at every step to avoid recomputation.
+
+### The Problem: Repeated Computation & Memory Fragmentation
+Although KV caching is conceptually simple, implementing it efficiently on GPUs is not.
+- Each layer stores massive K/V tensors.
+- PyTorch allocates them contiguously on GPU memory.
+- As generation progresses, the cache grows token-by-token, and eventually GPU memory becomes filled with non-contiguous free spaces.
+
+Even if the GPU has enough total memory, it can still fail to allocate a continuous block large enough →
+classic memory fragmentation problem.
+
+### OS-Inspired Solution: Page-based Cache Management
+PageBrain adopts the same idea used in operating systems:
+
+> Introduce a virtual memory abstraction for KV cache
+> → logical token indices are mapped to physical GPU blocks.
+
+- GPU memory is divided into fixed-size blocks (“pages”).
+- Each logical K/V position (layer × token index) maps to a page entry.
+- A BlockTable manages all logical → physical mappings.
+- New K/V entries no longer require contiguous GPU space.
+
+This allows PageBrain to overcome fragmentation entirely while keeping allocation fast.
+
+### The Core: Page-by-Page Attention Accumulation
+<div align="center">
+    <img src="https://github.com/user-attachments/assets/7cda546e-7401-4c07-9f4b-22cc3f995676" alt="PagedAttention" width="70%">
+    <p>Fig.3 - Illustraion of PagedAttention</p>
+</div>
+With the page-based KV layout established, PageBrain implements a custom PagedAttention operator:
+- K/V vectors are stored in fixed-size pages.
+- During attention computation, the system iterates over pages, not the full dense tensor.
+- Only the blocks relevant for the current sequence are read.
+- Attention scores are accumulated incrementally as the pages are scanned.
+
+This means:
+- No reconstruction of the full KV tensor
+- No need for contiguous memory
+- Consistent attention scores thanks to correct masking + block indexing
+- Efficient scaling for long sequences
+
+The math shown in Fig.3 describes exactly this process:
+accumulating `a_ij * v_j` page-by-page until the full context has been consumed.
 
 ## 🚀 Installation
 > Python 3.10+ recommended
@@ -79,6 +131,7 @@ This approach is ideal for research, experimentation, or embedding PageBrain int
 ```python
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from pagebrain.models.gpt2 import PagedGPT2LMHeadModel
+from pagebrain.block import BlockManager
 from pagebrain.cache import CacheManager
 
 # Load tokenizer & base model
@@ -87,12 +140,12 @@ base = AutoModelForCausalLM.from_pretrained("openai-community/gpt2")
 
 # Initialize cache manager for paged KV memory
 block_manager = BlockManager(config)
-cache = CacheManager(block_manager, config)
+cache_manager = CacheManager(block_manager, config)
 
 # Wrap the model with PageBrain's PagedAttention-enabled module
-model = PagedGPT2LMHeadModel(base, cache).eval()
+model = PagedGPT2LMHeadModel(base, cache_manager).eval()
 
 # Example inference
 inputs = tokenizer("Hello, PageBrain!", return_tensors="pt")
-outputs = model.(inputs['input_ids'], input_pos=..., cache_pos=...)
+outputs = model(inputs['input_ids'], input_pos=..., cache_pos=...)
 ```
