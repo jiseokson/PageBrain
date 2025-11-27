@@ -83,6 +83,7 @@ This allows PageBrain to overcome fragmentation entirely while keeping allocatio
     <p>Fig.3 - Illustraion of PagedAttention</p>
 </div>
 With the page-based KV layout established, PageBrain implements a custom PagedAttention operator:
+
 - K/V vectors are stored in fixed-size pages.
 - During attention computation, the system iterates over pages, not the full dense tensor.
 - Only the blocks relevant for the current sequence are read.
